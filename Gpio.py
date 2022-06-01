@@ -12,14 +12,14 @@ class Gpio():
     log = Syslog("gpios")
 
     _usedGpio = []
-    def __init__(s, num):
+    def __init__(s, num, name="", mode='not_configured'):
         s._num = num
+        s._name = name
         s._fake = False
         s._timeoutTask = None
         s.eventCb = None
         s.prevVal = None
         s._of = None
-        s.setMode('not_configured')
 
         s._lock = threading.Lock()
         s._gpioLock = threading.Lock()
@@ -37,6 +37,8 @@ class Gpio():
         if os.path.exists('FAKE'):
             s._fake = True
 
+        s.setMode(mode)
+
 
     def setMode(s, mode):
         s._mode = mode
@@ -52,6 +54,10 @@ class Gpio():
 
     def num(s):
         return s._num;
+
+
+    def name(s):
+        return s._name
 
 
     def fd(s):
