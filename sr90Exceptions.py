@@ -2,7 +2,7 @@
 class AppError(Exception):
     def __init__(s, log, msg):
         super().__init__(s, msg)
-        log.err("MBIO Exception: %s" % msg)
+        log.err("Error %s: %s" % (s.__class__, msg))
 
 
 # Configuration parser errors
