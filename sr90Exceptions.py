@@ -37,3 +37,12 @@ class TelegramError(AppError): # Telegram client errors
 class TelegramClientError(TelegramError):
     pass
 
+
+# Settings Errors
+
+class SettingsError(AppError):
+    pass
+
+class SettingsSaveError(SettingsError):
+    pass
+
