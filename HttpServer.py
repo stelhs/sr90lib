@@ -266,6 +266,11 @@ class HttpServer():
                                 content = json.dumps({'status': 'error',
                                                       'reason': '%s' % e,
                                                       'errCode': e.code()})
+                            except TypeError as e:
+                                content = json.dumps({'status': 'error',
+                                                      'reason': "Http subscriber %s return not seriable data.\n" \
+                                                                "Error: %s.\n" \
+                                                                "Data: %s" % (sPage, e, ret)})
                         break
 
                     if subscriberSucessProcessed:

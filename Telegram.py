@@ -35,7 +35,7 @@ class Telegram():
             resp = s.request('sendMessage', args);
             if resp['ok'] != 1:
                 raise TelegramError(s.log,
-                        'Method sendMessage return responce with incorrect "ok" value: %s' % resp) from e
+                        'Method sendMessage return responce with incorrect "ok" value: %s' % resp)
         except TypeError as e:
             raise TelegramError(s.log,
                     'Method sendMessage return JSON with absent field: %s' % e) from e

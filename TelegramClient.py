@@ -70,6 +70,8 @@ class TelegramClient:
 
             for row in rows:
                 s.recvLastId = row['updateId']
+                s.flushSenderQueue(row['fromId'])
+
                 s.recever(row['text'], row['msgId'], row['date'],
                           row['fromName'], row['fromId'],
                           row['chatId'], row['chatType'])
@@ -97,31 +99,57 @@ class TelegramClient:
         s.sendTask.sendMessage('requestToSend')
 
 
-    def sendToChat(s, name, srcMsg, replyToMessageId=0,
+    def sendToChat(s, chatName, msg, replyToMessageId=0,
                    disableNotification=False):
-        try:
+        with s._lock:
+            lastMsg = s.lastChatMsg[chatName][0]
+            cnt = s.lastChatMsg[chatName][1]
+        if msg == lastMsg:
+            s.lastChatMsg[chatName][1] = cnt + 1
+            return
+
+        chatId = s.chatIdByName(chatName)
+
+        if cnt and lastMsg:
+            s.flushSenderQueue(chatId)
+        else:
             with s._lock:
-                lastMsg = s.lastChatMsg[name][0]
-                cnt = s.lastChatMsg[name][1]
-            if srcMsg == lastMsg:
-                s.lastChatMsg[name][1] = cnt + 1
-                return
+                s.lastChatMsg[chatName][0] = msg
 
-            if cnt:
-                msg = "Сообщение ниже было отправленно %d раз:\n'%s'\n\n%s" % (
-                    cnt, lastMsg, srcMsg)
-                with s._lock:
-                    s.lastChatMsg[name][1] = 0
-            else:
-                msg = srcMsg
-                with s._lock:
-                    s.lastChatMsg[name][0] = msg
+        s.send(chatId, msg, replyToMessageId=0, disableNotification=False)
 
-            chatId = s.conf['chats'][name]['chatId']
-            s.send(chatId, msg, replyToMessageId=0, disableNotification=False)
+
+    def chatIdByName(s, chatName):
+        try:
+            return s.conf['chats'][chatName]['chatId']
         except KeyError as e:
             raise TelegramClientError(s.log,
-                    "Can't getting chatId by name '%s'. Field '%s' is absent in config" % (name, e))
+                    "Can't getting chatId by name '%s'. Field %s is absent in config" % (name, e))
+
+
+    def chatNameById(s, chatId):
+        for chatName, inf in s.conf['chats'].items():
+            if inf['chatId'] == chatId:
+                return chatName
+        raise TelegramClientError(s.log, "Chat id %s is not registred" % chatId)
+
+
+    def flushSenderQueue(s, chatId):
+        try:
+            chatName = s.chatNameById(chatId)
+        except TelegramClientError:
+            return
+
+        with s._lock:
+            lastMsg = s.lastChatMsg[chatName][0]
+            cnt = s.lastChatMsg[chatName][1]
+            if not cnt:
+                s.lastChatMsg[chatName][0] = ""
+                return
+            s.lastChatMsg[chatName][1] = 0
+            s.lastChatMsg[chatName][0] = ""
+            msg = "Сообщение ниже было отправленно %d раз:\n'%s'" % (cnt, lastMsg)
+        s.send(chatId, msg)
 
 
     def chats(s):

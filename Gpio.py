@@ -162,9 +162,7 @@ class Gpio():
 
         with s._lock:
             if s._timeoutTask:
-                s._timeoutTask.stop()
                 s._timeoutTask.remove()
-                s._timeoutTask.sleep(2000)
                 s._timeoutTask = None
 
         def timeout():

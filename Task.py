@@ -366,6 +366,7 @@ class Task():
         def do():
             nonlocal task
             while 1:
+                print("task.sleep")
                 task.sleep(interval)
                 cb()
 
