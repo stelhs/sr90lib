@@ -26,8 +26,7 @@ class HttpServer():
         s._connections = []
         s._lock = threading.Lock()
 
-        s._task = Task('http_server_%s:%d' % (host, port))
-        s._task.setCb(s.taskDo)
+        s._task = Task('http_server_%s:%d' % (host, port), s.taskDo)
         s._task.start()
 
 
@@ -164,7 +163,6 @@ class HttpServer():
 
 
 
-
     class Connection():
         def __init__(s, server, conn, remoteAddr, wwwDir = None):
             s._server = server
@@ -173,9 +171,8 @@ class HttpServer():
             s._name = "%s:%d" % (remoteAddr[0], remoteAddr[1])
             s.log = Syslog("http_connection_%s:%d" % (remoteAddr[0], remoteAddr[1]))
             s.log.mute('debug')
-            s._task = Task("http_connection_%s:%d" % (remoteAddr[0], remoteAddr[1]))
             s._keep_alive = False
-            s._task.setCb(s.taskDo)
+            s._task = Task("http_connection_%s:%d" % (remoteAddr[0], remoteAddr[1]), s.taskDo)
 
 
         def run(s):
@@ -278,7 +275,7 @@ class HttpServer():
                         s.respOk(content)
                     else:
                         if not s._wwwDir:
-                            s.log.debug('response 404 ERROR')
+                            s.log.debug('url %s: 404 ERROR' % url)
                             s.resp404()
 
                         if url == '/':
@@ -286,7 +283,7 @@ class HttpServer():
 
                         fileName = "%s/%s" % (s._wwwDir, url)
                         if not os.path.exists(fileName):
-                            s.log.debug('response 404 ERROR')
+                            s.log.debug('url %s: 404 ERROR' % url)
                             s.resp404()
                         else:
                             content = fileGetBinary(fileName)

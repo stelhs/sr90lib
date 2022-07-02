@@ -3,6 +3,7 @@ import time
 from Syslog import *
 from common import *
 import traceback
+from sr90Exceptions import *
 
 
 class TaskStopException(Exception):
@@ -21,20 +22,22 @@ class Task():
 
     taskErrorCb = None
 
-    def __init__(s, name, exitCb = None, autoremove = False):
+    def __init__(s, name, fn=None, exitCb=None, autoremove=False):
         s._name = name
-        s.cb = None
+        s.fn = fn
+        s.fnArgs = None
+        s.exitCb = exitCb
+        s.autoremove = autoremove
+        s.log = Syslog("task_%s" % name)
+
         s._state = "stopped"
         s._tid = None
         s._removing = False
         s._msgQueue = []
-        s.exitCb = exitCb
-        s.autoremove = autoremove
 
         if Task.taskByName(name):
-            raise Exception("Task with name '%s' is existed" % name)
+            raise TaskAlreadyExistException(s.log, "Task with name '%s' is existed" % name)
 
-        s.log = Syslog("task_%s" % name)
         s.log.mute('debug')
         s.log.debug("created")
         s._lock = threading.Lock()
@@ -114,18 +117,18 @@ class Task():
         s.setState("running")
 
 
-    def setCb(s, cb, args = None):
-        s.cb = cb
-        s.cbArgs = args
+    def setFn(s, cb, args=None):
+        s.fn = cb
+        s.fnArgs = args
 
 
     def thread(s, name):
         s._tid = threading.get_ident()
         try:
-            if s.cbArgs:
-                s.cb(s.cbArgs)
+            if s.fnArgs:
+                s.fn(s.fnArgs)
             else:
-                s.cb()
+                s.fn()
         except TaskStopException:
             s.log.debug("stopped")
         except Exception as e:
@@ -253,8 +256,7 @@ class Task():
 
     @staticmethod
     def runObserveTasks():
-        Task.observeTask = Task("observe")
-        Task.observeTask.setCb(Task.doObserveTasks)
+        Task.observeTask = Task("observe", Task.doObserveTasks)
         Task.observeTask.start()
 
 
@@ -324,11 +326,10 @@ class Task():
             with Task.listAsyncLock:
                 Task.listAsyncFunctions.pop(name)
 
-        task = Task("Async_%s" % name, exitCb)
         def do():
             fn()
             task.remove()
-        task.setCb(do)
+        task = Task("Async_%s" % name, do, exitCb)
         task.start()
         with Task.listAsyncLock:
             Task.listAsyncFunctions[name] = task
@@ -345,8 +346,6 @@ class Task():
 
     @staticmethod
     def setTimeout(name, interval, cb):
-        task = Task('timeout_task_%s' % name)
-
         def timeout():
             nonlocal task
             Task.sleep(interval)
@@ -354,22 +353,20 @@ class Task():
             cb()
             task.remove()
 
-        task.setCb(timeout)
+        task = Task('timeout_task_%s' % name, timeout)
         task.start()
         return task
 
 
     @staticmethod
     def setPeriodic(name, interval, cb):
-        task = Task('periodic_task_%s' % name)
-
         def do():
             nonlocal task
             while 1:
                 task.sleep(interval)
                 cb()
 
-        task.setCb(do)
+        task = Task('periodic_task_%s' % name, do)
         task.start()
         return task
 

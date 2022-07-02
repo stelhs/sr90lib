@@ -5,8 +5,7 @@ from Task import *
 class PeriodicNotifier():
     def __init__(s):
         s._updaters = []
-        s.task = Task('periodic_notifier')
-        s.task.setCb(s.do)
+        s.task = Task('periodic_notifier', s.do)
         s.task.start()
 
 

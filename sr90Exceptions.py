@@ -5,6 +5,12 @@ class AppError(Exception):
         log.err("Error %s: %s" % (s.__class__, msg))
 
 
+# Tasks
+
+class TaskAlreadyExistException(AppError):
+    pass
+
+
 # Configuration parser errors
 
 class ConfigError(AppError):

@@ -18,16 +18,14 @@ class TelegramClient:
         for chatName, chatInfo in s.chats().items():
             s.lastChatMsg[chatName] = ["", 0]
 
-        s.sendTask = Task('TelegramClient_send')
-        s.sendTask.setCb(s.sender)
+        s.sendTask = Task('TelegramClient_send', s.sender)
         s.sendTask.start()
 
         s.listenerPause = False
         if s.recever:
             s.lastRxIdFile = '.telegram_last_rx_update_id'
             s.recvLastId = int(fileGetContent(s.lastRxIdFile))
-            s.listenerTask = Task('TelegramClient_listener')
-            s.listenerTask.setCb(s.listener)
+            s.listenerTask = Task('TelegramClient_listener', s.listener)
             s.listenerTask.start()
 
 
