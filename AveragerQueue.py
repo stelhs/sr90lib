@@ -16,15 +16,14 @@ class AveragerQueue():
         with s.lock:
             s._q.append(val)
             if s.size and (len(s._q) > s.size):
-                s._q = s._q[1:]
-
+                s._q.pop(0)
 
     def round(s):
         with s.lock:
-            s._q.sort()
-            if not len(s._q):
+            q = sorted(s._q)
+            if not len(q):
                 raise AveragerQueueEmptyError()
-            return s._q[int((len(s._q) / 2) - 1)]
+            return q[int((len(q) / 2) - 1)]
 
 
     def clear(s):
