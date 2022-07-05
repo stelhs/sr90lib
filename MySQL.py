@@ -106,11 +106,12 @@ class MySQL():
 
             query = "update %s set " % tableName
             sep = ''
-            for field, val in dataWithComma.items():
-                if field == 'id':
-                    continue
-                query += "%s`%s`='%s'" % (sep, field, val)
-                sep = ','
+            if len(dataWithComma):
+                for field, val in dataWithComma.items():
+                    if field == 'id':
+                        continue
+                    query += "%s`%s`='%s'" % (sep, field, val)
+                    sep = ','
 
             if len(dataWithOutComma):
                 for field, val in dataWithOutComma.items():

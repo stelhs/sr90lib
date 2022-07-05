@@ -16,8 +16,7 @@ class TermoSensorDs18b20():
         s.prev_t = None
         s.queue = AveragerQueue(5)
 
-        s.task = Task("termo_sensor_%s" % addr)
-        s.task.setCb(s.do)
+        s.task = Task("termo_sensor_%s" % addr, s.do)
         s.task.start()
 
         if os.path.exists('FAKE'):

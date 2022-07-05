@@ -262,7 +262,7 @@ class Gpio():
 
     @classmethod
     def startEvents(c):
-        c.task.setCb(c.eventHandler)
+        c.task.setFn(c.eventHandler)
         c.task.start()
 
 

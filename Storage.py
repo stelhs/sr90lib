@@ -57,6 +57,10 @@ class Storage():
         return "storage:%s" % s.fileName
 
 
+    def destroy(s):
+        with s._lock:
+            return
+
 
     class Key():
         def __init__(s, storage, keyPath, default):
@@ -79,6 +83,8 @@ class Storage():
 
         def set(s, val):
             with s.storage._lock:
+                if val == s.val:
+                    return
                 s.val = val
                 s.branch[s.key] = val
             s.storage.save()

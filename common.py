@@ -1,4 +1,5 @@
-import os
+import os, math, datetime
+
 
 class FileError(Exception):
     pass
@@ -30,14 +31,30 @@ def fileGetBinary(filename):
         raise FileError("fileGetBinary(%s) error: %s" % (filename, e)) from e
 
 
-def timeStr(time):
-    if time < 60:
-        return "%d sec" % time
+def timeDurationStr(duration):
+    if duration == None:
+        return None
+    totalMins = math.floor(duration / 60)
+    totalHours = math.floor(totalMins / 60)
 
-    if time < 3600:
-        return "%d min, %d sec" % (time / 60,
-                 time - (int(time / 60) * 60))
+    days = math.floor(totalHours / 24)
+    hours = totalHours - days * 24
+    mins = totalMins - totalHours * 60
+    sec = duration - totalMins * 60
 
-    if time < 60 * 60 * 24:
-        return "%d hour, %d min" % (time / 3600, (time - (int(time / 3600) * 3600)) / 60)
+    str = "%02d" % sec
+    if mins:
+        str = "%02d:%s" % (mins, str)
+    if hours:
+        str = "%02d:%s" % (hours, str)
+    if days:
+        str = "%dd %s" % (days, str)
+    return str
+
+
+def timeDateToStr(timestamp):
+    if timestamp == None:
+        return None
+    d = datetime.datetime.fromtimestamp(timestamp)
+    return "%02d.%02d.%04d %02d:%02d:%02d" % (d.day, d.month, d.year, d.hour, d.minute, d.second)
 

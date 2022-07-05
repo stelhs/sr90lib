@@ -26,8 +26,7 @@ class HttpServer():
         s._connections = []
         s._lock = threading.Lock()
 
-        s._task = Task('http_server_%s:%d' % (host, port))
-        s._task.setCb(s.taskDo)
+        s._task = Task('http_server_%s:%d' % (host, port), s.taskDo)
         s._task.start()
 
 
@@ -60,6 +59,7 @@ class HttpServer():
 
 
     def destroy(s):
+        print("destroy HttpServer")
         s._task.remove()
         with s._lock:
             connections = s._connections
@@ -164,7 +164,6 @@ class HttpServer():
 
 
 
-
     class Connection():
         def __init__(s, server, conn, remoteAddr, wwwDir = None):
             s._server = server
@@ -173,9 +172,8 @@ class HttpServer():
             s._name = "%s:%d" % (remoteAddr[0], remoteAddr[1])
             s.log = Syslog("http_connection_%s:%d" % (remoteAddr[0], remoteAddr[1]))
             s.log.mute('debug')
-            s._task = Task("http_connection_%s:%d" % (remoteAddr[0], remoteAddr[1]))
             s._keep_alive = False
-            s._task.setCb(s.taskDo)
+            s._task = Task("http_connection_%s:%d" % (remoteAddr[0], remoteAddr[1]), s.taskDo)
 
 
         def run(s):
@@ -216,7 +214,11 @@ class HttpServer():
                         s.close()
                         return
 
-                    parts = HttpServer.parseHttpRequest(req)
+                    try:
+                        parts = HttpServer.parseHttpRequest(req)
+                    except IndexError:
+                        parts = None
+
                     if not parts:
                         s.close()
                         return
@@ -254,6 +256,7 @@ class HttpServer():
 
                         if not content:
                             try:
+                                ret = None
                                 ret = sCb(args, body, attrs, s)
                                 content = ret
 
@@ -270,7 +273,7 @@ class HttpServer():
                                 content = json.dumps({'status': 'error',
                                                       'reason': "Http subscriber %s return not seriable data.\n" \
                                                                 "Error: %s.\n" \
-                                                                "Data: %s" % (sPage, e, ret)})
+                                                                "Data: %s" % (sPage, e, ret if ret else '')})
                         break
 
                     if subscriberSucessProcessed:
@@ -278,7 +281,7 @@ class HttpServer():
                         s.respOk(content)
                     else:
                         if not s._wwwDir:
-                            s.log.debug('response 404 ERROR')
+                            s.log.debug('url %s: 404 ERROR' % url)
                             s.resp404()
 
                         if url == '/':
@@ -286,7 +289,7 @@ class HttpServer():
 
                         fileName = "%s/%s" % (s._wwwDir, url)
                         if not os.path.exists(fileName):
-                            s.log.debug('response 404 ERROR')
+                            s.log.debug('url %s: 404 ERROR' % url)
                             s.resp404()
                         else:
                             content = fileGetBinary(fileName)
