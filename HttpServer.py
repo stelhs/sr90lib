@@ -59,6 +59,7 @@ class HttpServer():
 
 
     def destroy(s):
+        print("destroy HttpServer")
         s._task.remove()
         with s._lock:
             connections = s._connections
@@ -213,7 +214,11 @@ class HttpServer():
                         s.close()
                         return
 
-                    parts = HttpServer.parseHttpRequest(req)
+                    try:
+                        parts = HttpServer.parseHttpRequest(req)
+                    except IndexError:
+                        parts = None
+
                     if not parts:
                         s.close()
                         return
@@ -251,6 +256,7 @@ class HttpServer():
 
                         if not content:
                             try:
+                                ret = None
                                 ret = sCb(args, body, attrs, s)
                                 content = ret
 
@@ -267,7 +273,7 @@ class HttpServer():
                                 content = json.dumps({'status': 'error',
                                                       'reason': "Http subscriber %s return not seriable data.\n" \
                                                                 "Error: %s.\n" \
-                                                                "Data: %s" % (sPage, e, ret)})
+                                                                "Data: %s" % (sPage, e, ret if ret else '')})
                         break
 
                     if subscriberSucessProcessed:
