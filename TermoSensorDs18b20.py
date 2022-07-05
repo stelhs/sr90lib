@@ -6,12 +6,14 @@ from AveragerQueue import *
 
 
 class TermoSensorDs18b20():
-    def __init__(s, addr):
+    def __init__(s, addr, observerCb = None):
         s._addr = addr
+        s.observerCb = observerCb
         s.log = Syslog("termo_sensor_%s" % addr)
         s.lock = threading.Lock()
         s._fake = None
         s._t = None
+        s.prev_t = None
         s.queue = AveragerQueue(5)
 
         s.task = Task("termo_sensor_%s" % addr)
@@ -55,6 +57,11 @@ class TermoSensorDs18b20():
                     with s.lock:
                         s.queue.push(t)
                         s._t = s.queue.round()
+
+                        if s.observerCb and s._t != s.prev_t:
+                            s.observerCb(s, s._t)
+                        s.prev_t = s._t
+
                 of.close()
             except Exception as e:
                 err = "Can't read termosensor, reason: %s" % e
@@ -70,7 +77,7 @@ class TermoSensorDs18b20():
 
 
     def __repr__(s):
-        return "t:%s" % s._addr
+        return "TermoSensorDs18b20:%s" % s._addr
 
 
     def __str__(s):
