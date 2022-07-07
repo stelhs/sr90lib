@@ -15,9 +15,15 @@ class HttpHandlerError(Exception):
         return s.errCode
 
 
+class HttpConnectionHeaderError(Exception): # Needed header is absent
+    pass
+
+
+class HttpConnectionCookieError(Exception): # Needed cookie is absent
+    pass
+
 
 class HttpServer():
-    subscribers = []
     def __init__(s, host, port, wwwDir = None):
         s._host = host
         s._port = port
@@ -28,6 +34,25 @@ class HttpServer():
 
         s._task = Task('http_server_%s:%d' % (host, port), s.taskDo)
         s._task.start()
+        s._reqHandlers = []
+
+
+    def setReqHandler(s, method, url, cb, requiredFields=[], retJson=True):
+        reqHandler = HttpServer.ReqHandler(method, url, cb, requiredFields, retJson)
+        s._reqHandlers.append(reqHandler)
+        return reqHandler
+
+
+    def reqHandlers(s):
+        return s._reqHandlers
+
+
+    def wwwDir(s):
+        return s._wwwDir
+
+
+    def connections(s):
+        return s._connections
 
 
     def taskDo(s):
@@ -54,27 +79,6 @@ class HttpServer():
             httpConn.run()
 
 
-    def setReqHandler(s, method, page, cb, requiredFields=[], retJson=True):
-        HttpServer.subscribers.append((method, page, cb, requiredFields, retJson))
-
-
-    def destroy(s):
-        print("destroy HttpServer")
-        s._task.remove()
-        with s._lock:
-            connections = s._connections
-
-        for conn in connections:
-            conn.close()
-        s._listenedSock.shutdown(socket.SHUT_RDWR)
-        s._listenedSock.close()
-        s._listenedSock = None
-
-
-    def wwwDir(s):
-        return s._wwwDir
-
-
     @staticmethod
     def parseHttpRequest(req):
         parts = req.split("\r\n\r\n")
@@ -99,7 +103,7 @@ class HttpServer():
 
         method, url, version = parts
 
-        attrs = {}
+        attrs = []
         for line in lines[1:]:
             if not line.strip():
                 continue
@@ -107,7 +111,7 @@ class HttpServer():
             row = line.split(":")
             name = row[0].strip()
             val = row[1].strip()
-            attrs[name] = val
+            attrs.append((name, val))
 
         return (method, url, version, attrs, body)
 
@@ -137,7 +141,7 @@ class HttpServer():
         version = parts[0]
         code = parts[1]
 
-        attrs = {}
+        attrs = []
         for line in lines[1:]:
             if not line.strip():
                 continue
@@ -145,7 +149,7 @@ class HttpServer():
             row = line.split(":")
             name = row[0].strip()
             val = row[1].strip()
-            attrs[name] = val
+            attrs.append((name, val))
 
         return (version, code, attrs, body)
 
@@ -164,16 +168,135 @@ class HttpServer():
 
 
 
+    def destroy(s):
+        print("destroy HttpServer")
+        s._task.remove()
+        with s._lock:
+            connections = s._connections
+
+        for conn in connections:
+            conn.close()
+        s._listenedSock.shutdown(socket.SHUT_RDWR)
+        s._listenedSock.close()
+        s._listenedSock = None
+
+
+    class ReqHandler():
+        def __init__(s, method, url, handler, requiredFields, retJson):
+            s.method = method
+            s.url = url
+            s.handler = handler
+            s.requiredFields = requiredFields
+            s.retJson = retJson
+
+
+        def match(s, method, url):
+            return method == s.method and url == s.url
+
+
+        def call(s, conn, args):
+            for f in s.requiredFields:
+                if f not in args:
+                    return json.dumps({'status': 'error',
+                                       'reason': "filed '%s' is absent in %s request" % (
+                                       f, s.method)})
+
+            try:
+                ret = None
+                ret = s.handler(args, conn)
+                content = ret
+
+                if s.retJson:
+                    if not ret:
+                        ret = {}
+                    ret['status'] = 'ok'
+                    content = json.dumps(ret)
+                return content
+            except HttpHandlerError as e:
+                return json.dumps({'status': 'error',
+                                   'reason': '%s' % e,
+                                   'errCode': e.code()})
+            except TypeError as e:
+                return json.dumps({'status': 'error',
+                                   'reason': "Http subscriber %s return not seriable data.\n" \
+                                             "Error: %s.\n" \
+                                             "Data: %s" % (s.url, e, ret if ret else '')})
+
+
+        def __repr__(s):
+            return "HttpServer.ReqHandler:%s" % s.url
+
+
+
     class Connection():
         def __init__(s, server, conn, remoteAddr, wwwDir = None):
             s._server = server
             s._conn = conn
             s._wwwDir = wwwDir
+            s._remoteAddr = remoteAddr
             s._name = "%s:%d" % (remoteAddr[0], remoteAddr[1])
             s.log = Syslog("http_connection_%s:%d" % (remoteAddr[0], remoteAddr[1]))
             s.log.mute('debug')
+            s.respHeaders = []
             s._keep_alive = False
             s._task = Task("http_connection_%s:%d" % (remoteAddr[0], remoteAddr[1]), s.taskDo)
+            s._headers = []
+            s._body = ""
+
+
+        def name(s):
+            return s._name
+
+
+        def remoteAddr(s):
+            return "%s:%s" % (s._remoteAddr[0], s._remoteAddr[1])
+
+
+        def headers(s):
+            return s._headers
+
+
+        def header(s, name):
+            for key, val in s._headers:
+                if key == name:
+                    return val
+            raise HttpConnectionHeaderError('header %s has absent in request' % name)
+
+
+        def body(s):
+            return s._body
+
+
+        def setCookie(s, key, val, path='/'):
+            s.setHeader("Set-Cookie: %s=%s; path=%s" % (key, val, path))
+
+
+        def removeCookie(s, key):
+            s.setHeader("Set-Cookie: %s=delete; Max-Age=-1" % key)
+
+
+        def cookies(s):
+            cookies = []
+            for key, val in s.headers():
+                if key != 'Cookie':
+                    continue
+
+                items = val.split(';')
+                for item in items:
+                    key, val = item.split('=')
+                    cookies.append((key, val))
+            return cookies
+
+
+        def cookie(s, name):
+            for key, val in s.cookies():
+                if key == name:
+                    return val
+            raise HttpConnectionCookieError('cookie %s has absent in request' % name)
+
+
+        def setHeader(s, row):
+            s.respHeaders.append(row)
 
 
         def run(s):
@@ -223,60 +346,34 @@ class HttpServer():
                         s.close()
                         return
 
-                    method, url, version, attrs, body = parts
-
-                    for name, val in attrs.items():
-                        if name == 'Connection' and val == 'keep-alive':
-                            s._keep_alive = True
-
+                    method, url, version, s._headers, s._body = parts
                     s.log.debug("%s %s" % (method, url))
-
                     page, args = s.parseUrl(url)
                     if not args:
                         args = {}
 
-                    if ('Content-Type' in attrs and
-                            attrs['Content-Type'] == 'application/x-www-form-urlencoded'):
-                        postArgs = HttpServer.parseParamsString(body)
-                        args.update(postArgs)
+                    try:
+                        if s.header('Connection') == 'keep-alive':
+                            s._keep_alive = True
+                    except HttpConnectionHeaderError:
+                        pass
 
-                    subscriberSucessProcessed = False
-                    content = ""
-                    for (sMethod, sPage, sCb, requiredFields, retJson) in HttpServer.subscribers:
-                        if sMethod != method or sPage != page:
-                            continue
+                    try:
+                        if s.header('Content-Type') == 'application/x-www-form-urlencoded':
+                            postArgs = HttpServer.parseParamsString(body)
+                            args.update(postArgs)
+                    except HttpConnectionHeaderError:
+                        pass
 
-                        subscriberSucessProcessed = True
-                        for reqFiled in requiredFields:
-                            if reqFiled not in args:
-                                content = json.dumps({'status': 'error',
-                                                      'reason': "filed '%s' is absent in %s request" % (
-                                                                reqFiled, sMethod)})
-                                break
 
-                        if not content:
-                            try:
-                                ret = None
-                                ret = sCb(args, body, attrs, s)
-                                content = ret
+                    requestProcessed = False
+                    for reqHandler in s._server.reqHandlers():
+                        if reqHandler.match(method, page):
+                            requestProcessed = True
+                            content = reqHandler.call(s, args)
+                            break
 
-                                if retJson:
-                                    if not ret:
-                                        ret = {}
-                                    ret['status'] = 'ok'
-                                    content = json.dumps(ret)
-                            except HttpHandlerError as e:
-                                content = json.dumps({'status': 'error',
-                                                      'reason': '%s' % e,
-                                                      'errCode': e.code()})
-                            except TypeError as e:
-                                content = json.dumps({'status': 'error',
-                                                      'reason': "Http subscriber %s return not seriable data.\n" \
-                                                                "Error: %s.\n" \
-                                                                "Data: %s" % (sPage, e, ret if ret else '')})
-                        break
-
-                    if subscriberSucessProcessed:
+                    if requestProcessed:
                         s.log.debug('response 200 OK')
                         s.respOk(content)
                     else:
@@ -311,10 +408,6 @@ class HttpServer():
             s._task.remove()
             with s._server._lock:
                 s._server._connections.remove(s)
-
-
-        def name(s):
-            return s._name
 
 
         def mimeTypeByFileName(s, fileName):
@@ -357,6 +450,8 @@ class HttpServer():
 
             header = "HTTP/1.1 200 OK\r\n"
             header += "Content-Type: %s\r\n" % ctype
+            for row in s.respHeaders:
+                header += "%s\r\n" % row
             header += "Content-Length: %d\r\n" % len(data)
             if s._keep_alive:
                 header += "Connection: Keep-Alive\r\n"
@@ -366,6 +461,7 @@ class HttpServer():
                 s._conn.send(headerBytes + data)
             except Exception as e:
                 s.log.err("respOk error: %s" % e)
+            s.respHeaders = []
 
 
         def respBadRequest(s, data = ""):
@@ -383,6 +479,7 @@ class HttpServer():
                 s._conn.send(headerBytes + data)
             except Exception as e:
                 s.log.err("respBadRequest error: %s" % e)
+            s.respHeaders = []
 
 
         def resp404(s):
@@ -398,4 +495,11 @@ class HttpServer():
                 s._conn.send(headerBytes + data)
             except Exception as e:
                 s.log.err("resp404 error: %s" % e)
+            s.respHeaders = []
+
+
+        def __repr__(s):
+            return "HttpServer.Connection: %s" % s.name()
+
+
 
