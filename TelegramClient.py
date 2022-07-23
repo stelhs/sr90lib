@@ -69,10 +69,10 @@ class TelegramClient:
             for row in rows:
                 s.recvLastId = row['updateId']
                 s.flushSenderQueue(row['fromId'])
-
                 s.recever(row['text'], row['msgId'], row['date'],
                           row['fromName'], row['fromId'],
-                          row['chatId'], row['chatType'])
+                          row['chatId'], row['chatType'],
+                          row['chatName'], s.recvLastId)
 
             try:
                 filePutContent(s.lastRxIdFile, str(s.recvLastId))

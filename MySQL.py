@@ -78,7 +78,7 @@ class MySQL():
                 if field == 'id':
                     continue
                 if type(val) is str:
-                    val = val.replace('"', '\\"')
+                    val = val.replace('"', '\\"').replace('\\', '\\\\')
 
                 query += '%s`%s`="%s"' % (sep, field, val)
                 sep = ','
@@ -89,9 +89,9 @@ class MySQL():
                         continue
 
                     if type(val) is str:
-                        val = val.replace('"', '\\"')
+                        val = val.replace('"', '\\"').replace('\\', '\\\\')
 
-                    query += '%s`%s`=%s' % (sep, field, val.replace('"', '\\"'))
+                    query += '%s`%s`=%s' % (sep, field, val)
                     sep = ','
 
             with s.conn.cursor(dictionary = True) as cursor:
@@ -110,6 +110,10 @@ class MySQL():
                 for field, val in dataWithComma.items():
                     if field == 'id':
                         continue
+
+                    if type(val) is str:
+                        val = val.replace('"', '\\"').replace('\\', '\\\\')
+
                     query += "%s`%s`='%s'" % (sep, field, val)
                     sep = ','
 
@@ -117,6 +121,10 @@ class MySQL():
                 for field, val in dataWithOutComma.items():
                     if field == 'id':
                         continue
+
+                    if type(val) is str:
+                        val = val.replace('"', '\\"').replace('\\', '\\\\')
+
                     query += '%s`%s`=%s' % (sep, field, val)
                     sep = ','
 

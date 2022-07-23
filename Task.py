@@ -336,6 +336,20 @@ class Task():
         return task
 
 
+    @staticmethod
+    def asyncRun(name, fn, exitCb = None):
+        if not hasattr(Task.asyncRun, 'id'):
+            Task.asyncRun.id = 1
+        else:
+            Task.asyncRun.id += 1
+
+        def do():
+            fn()
+            task.remove()
+        task = Task("Async_%s_%d" % (name, Task.asyncRun.id), do, exitCb)
+        task.start()
+        return task
+
 
     def __str__(s):
         str = "task %d:%s/%s" % (s._id, s._name, s.state())
