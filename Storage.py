@@ -5,8 +5,8 @@ from common import *
 
 
 class Storage():
-    def __init__(s, fileName):
-        s.storageDirectory = "storage/"
+    def __init__(s, fileName, storageDir):
+        s.storageDirectory = storageDir
         s.log = Syslog('Storage_%s' % fileName)
         s.fileName = "%s%s" % (s.storageDirectory, fileName)
         s.data = {}
