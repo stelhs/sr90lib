@@ -27,7 +27,7 @@ class Gpio():
         s.log.mute('debug')
 
         try:
-            if Gpio.gpioByNum(num):
+            if Gpio.gpioIsRegistred(num):
                 raise GpioNumberIsBusyError(s.log,
                     "Can't register new GPIO %d: gpio already in used" % num)
         except:
@@ -216,6 +216,14 @@ class Gpio():
 
     def __str__(s):
         return "GPIO:%d_%s" % (s._num, s._mode)
+
+
+    @staticmethod
+    def gpioIsRegistred(num):
+        for gpio in Gpio._usedGpio:
+            if gpio.num() == num:
+                return True
+        return False
 
 
     @staticmethod
