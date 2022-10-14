@@ -1,4 +1,4 @@
-import threading
+import threading, os
 from sr90Exceptions import *
 from Telegram import *
 from Syslog import *
@@ -23,8 +23,12 @@ class TelegramClient:
 
         s.listenerPause = False
         if s.recever:
-            s.lastRxIdFile = '.telegram_last_rx_update_id'
-            s.recvLastId = int(fileGetContent(s.lastRxIdFile))
+            s.lastRxIdFile = s.conf['lastRxIdFile']
+
+            s.recvLastId = -1
+            if os.path.exists(s.lastRxIdFile):
+                s.recvLastId = int(fileGetContent(s.lastRxIdFile))
+
             s.listenerTask = Task('TelegramClient_listener', s.listener)
             s.listenerTask.start()
 
