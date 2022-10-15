@@ -14,7 +14,7 @@ class MySQL():
     def isClosed(s):
         with s._lock:
             if s.conn:
-                return s.conn.is_closed()
+                return not s.conn.is_connected()
             return True
 
 
