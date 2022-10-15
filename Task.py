@@ -378,7 +378,7 @@ class Task():
             nonlocal task
             while 1:
                 task.sleep(interval)
-                cb()
+                cb(task)
 
         task = Task('periodic_task_%s' % name, do)
         task.start()
