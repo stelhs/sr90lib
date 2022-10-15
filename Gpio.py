@@ -68,7 +68,7 @@ class Gpio():
 
     def initReal(s):
         if s._of:
-            close(s._of)
+            s._of.close()
 
         if s._mode == 'not_configured':
             if os.path.exists("/sys/class/gpio/gpio%d" % s._num):
