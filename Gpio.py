@@ -202,7 +202,7 @@ class Gpio():
         if not s.eventCb:
             return
 
-        s.poll.usregister(s._of.fileno())
+        s.poll.unregister(s._of.fileno())
         s.eventCb = None
 
 
