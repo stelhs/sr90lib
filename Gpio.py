@@ -148,10 +148,15 @@ class Gpio():
             raise GpioIncorrectStateError(s.log,
                     "Can't get value(), GPIO:%d does not configured" % s._num)
 
-        if s._fake:
-            val = s.valueFake()
-        else:
-            val = s.valueReal()
+        try:
+            if s._fake:
+                val = s.valueFake()
+            else:
+                val = s.valueReal()
+        except ValueError as e:
+            raise GpioIncorrectStateError(s.log,
+                    "Can't get value(), GPIO:%d does not configured: %s" % (s._num, e))
+
         s.prevVal = val
         return val
 
