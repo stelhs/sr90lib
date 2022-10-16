@@ -40,30 +40,26 @@ class Task():
 
         s.log.mute('debug')
         s.log.debug("created")
-        s._lock = threading.Lock()
+        s.msg_lock = threading.Lock()
         s._ev = threading.Event()
-        with s._lock:
-            Task.lastId += 1
-            s._id = Task.lastId
-            s._alive = False
+        Task.lastId += 1
+        s._id = Task.lastId
+        s._alive = False
 
         with Task.listTasksLock:
             s.listTasks.append(s)
 
 
     def iAmAlive(s):
-        with s._lock:
-            s._alive = True
+        s._alive = True
 
 
     def checkForAlive(s):
-        with s._lock:
-            s._alive = False
+        s._alive = False
 
 
     def isAlived(s):
-        with s._lock:
-            return s._alive
+        return s._alive
 
 
     def setFreezed(s):
@@ -71,14 +67,13 @@ class Task():
 
 
     def sendMessage(s, msg=""):
-        with s._lock:
-            s._msgQueue.append(msg)
+        s._msgQueue.append(msg)
         s._ev.set()
 
 
     def message(s):
         s._ev.clear()
-        with s._lock:
+        with s.msg_lock:
             if not len(s._msgQueue):
                 return None
 
@@ -88,7 +83,7 @@ class Task():
 
 
     def dropMessages(s):
-        with s._lock:
+        with s.msg_lock:
             s._msgQueue = []
 
 
@@ -190,8 +185,7 @@ class Task():
 
         s.log.debug("removing..")
         s.stop()
-        with s._lock:
-            s._removing = True
+        s._removing = True
 
         while 1:
             if s.state() == "removed":
@@ -200,8 +194,7 @@ class Task():
 
 
     def isRemoving(s):
-        with s._lock:
-            return s._removing
+        return s._removing
 
 
     def name(s):
@@ -217,14 +210,12 @@ class Task():
 
 
     def setState(s, state):
-        with s._lock:
-            s._state = state
-            s.log.debug("set state %s" % state)
+        s._state = state
+        s.log.debug("set state %s" % state)
 
 
     def state(s):
-        with s._lock:
-            return s._state
+        return s._state
 
 
     @staticmethod
@@ -289,7 +280,7 @@ class Task():
 
     @staticmethod
     def sleep(interval = 0):
-        tid = threading.get_ident()
+        tid = threading.get_native_id()
         task = Task.taskByTid(tid)
         if not task:
 #            print("sleep in not task %d" % interval)
@@ -377,7 +368,7 @@ class Task():
         def do():
             nonlocal task
             while 1:
-                task.sleep(interval)
+                Task.sleep(interval)
                 cb(task)
 
         task = Task('periodic_task_%s' % name, do)
