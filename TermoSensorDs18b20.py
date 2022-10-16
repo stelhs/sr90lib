@@ -57,9 +57,13 @@ class TermoSensorDs18b20():
                         s.queue.push(t)
                         s._t = s.queue.round()
 
+                        t = None
                         if s.observerCb and s._t != s.prev_t:
-                            s.observerCb(s, s._t)
+                            t = s._t
                         s.prev_t = s._t
+
+                    if s.observerCb and t != None:
+                        s.observerCb(s, t)
 
                 of.close()
             except Exception as e:

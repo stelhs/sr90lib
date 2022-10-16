@@ -123,7 +123,7 @@ class Task():
 
 
     def thread(s, name):
-        s._tid = threading.get_ident()
+        s._tid = threading.get_native_id()
         try:
             if s.fnArgs:
                 s.fn(s.fnArgs)
@@ -352,7 +352,7 @@ class Task():
 
 
     def __str__(s):
-        str = "task %d:%s/%s" % (s._id, s._name, s.state())
+        str = "task %d:%s/%s:%d" % (s._id, s._name, s.state(), s.tid())
         if s._removing:
             str += ":removing"
         return str
@@ -383,6 +383,11 @@ class Task():
         task = Task('periodic_task_%s' % name, do)
         task.start()
         return task
+
+
+    @staticmethod
+    def currTid():
+        return threading.get_native_id()
 
 
     @staticmethod
