@@ -284,7 +284,7 @@ class HttpServer():
                 items = val.split(';')
                 for item in items:
                     key, val = item.split('=')
-                    cookies.append((key, val))
+                    cookies.append((key.strip(), val.strip()))
             return cookies
 
 
