@@ -33,6 +33,8 @@ class Task():
         s._removing = False
         s._msgQueue = []
         s._msgQueueLock = threading.Lock()
+        s._apiLock = threading.Lock()
+
 
         if Task.taskByName(name):
             raise TaskAlreadyExistException(s.log, "Task with name '%s' is existed" % name)
@@ -101,18 +103,19 @@ class Task():
 
 
     def start(s):
-        if s.state() != "stopped":
-            return
-
-        s.log.debug("start")
-        t = threading.Thread(target=s.thread, daemon=True, args=(s._name, ))
-        t.start()
-        s.setState("running")
+        with s._apiLock:
+            if s.state() != "stopped":
+                return
+            s.log.debug("start")
+            t = threading.Thread(target=s.thread, daemon=True, args=(s._name, ))
+            t.start()
+            s.setState("running")
 
 
     def setFn(s, cb, args=None):
-        s.fn = cb
-        s.fnArgs = args
+        with s._apiLock:
+            s.fn = cb
+            s.fnArgs = args
 
 
     def thread(s, name):
@@ -125,31 +128,34 @@ class Task():
         except TaskStopException:
             s.log.debug("stopped")
         except Exception as e:
-            trace = traceback.format_exc()
-            s.log.err("Task %s Exception: %s" % (s.name(), trace))
-            print("Task %s Exception: %s" % (s.name(), trace))
-            if Task.taskErrorCb:
-                Task.taskErrorCb(s, trace)
+            with s._apiLock:
+                trace = traceback.format_exc()
+                s.log.err("Task %s Exception: %s" % (s.name(), trace))
+                print("Task %s Exception: %s" % (s.name(), trace))
+                if Task.taskErrorCb:
+                    Task.taskErrorCb(s, trace)
 
-        if s.exitCb:
-            try:
-                s.exitCb()
-            except TaskStopException:
-                pass
+        with s._apiLock:
+            if s.exitCb:
+                try:
+                    s.exitCb()
+                except TaskStopException:
+                    pass
 
-        s.setState("stopped")
-        if s.isRemoving() or s.autoremove:
-            with Task.listTasksLock:
-                Task.listTasks.remove(s)
-            s.setState("removed")
-            s.log.debug("removed by flag")
+            s.setState("stopped")
+            if s.isRemoving() or s.autoremove:
+                with Task.listTasksLock:
+                    Task.listTasks.remove(s)
+                s.setState("removed")
+                s.log.debug("removed by flag")
 
 
     def stop(s):
-        if s.state() != "running":
-            return
-        s.log.debug("stopping")
-        s.setState("stopping")
+        with s._apiLock:
+            if s.state() != "running":
+                return
+            s.log.debug("stopping")
+            s.setState("stopping")
 
 
     def restart(s):
@@ -162,28 +168,32 @@ class Task():
 
 
     def pause(s):
-        s.log.debug("paused")
-        s.setState("paused")
+        with s._apiLock:
+            s.log.debug("paused")
+            s.setState("paused")
 
 
     def resume(s):
-        if s.state() != "paused":
-            return
-        s.log.debug("resumed")
-        s.setState("running")
+        with s._apiLock:
+            if s.state() != "paused":
+                return
+            s.log.debug("resumed")
+            s.setState("running")
 
 
     def remove(s):
-        if s.state() == "stopped":
-            with Task.listTasksLock:
-                Task.listTasks.remove(s)
-            s.setState("removed")
-            s.log.debug("removed immediately")
-            return
+        with s._apiLock:
+            if s.state() == "stopped":
+                with Task.listTasksLock:
+                    Task.listTasks.remove(s)
+                s.setState("removed")
+                s.log.debug("removed immediately")
+                return
 
-        s.log.debug("removing..")
-        s.stop()
-        s._removing = True
+            s.log.debug("removing..")
+            s.log.debug("stopping")
+            s.setState("stopping")
+            s._removing = True
 
         while 1:
             if s.state() == "removed":
@@ -341,7 +351,7 @@ class Task():
 
 
     def __str__(s):
-        str = "task %d:%s/%s:%d" % (s._id, s._name, s.state(), s.tid())
+        str = "task %d:%s/%s:%s" % (s._id, s._name, s.state(), s.tid())
         if s._removing:
             str += ":removing"
         return str
