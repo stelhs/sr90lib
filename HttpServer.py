@@ -239,7 +239,8 @@ class HttpServer():
             s.log.mute('debug')
             s.respHeaders = []
             s._keep_alive = False
-            s._task = Task("http_connection_%s:%d" % (remoteAddr[0], remoteAddr[1]), s.taskDo)
+            s._task = Task("http_connection_%s:%d" % (remoteAddr[0], remoteAddr[1]),
+                           s.taskDo, autoremove=True)
             s._headers = []
             s._body = ""
 
