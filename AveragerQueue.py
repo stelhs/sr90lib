@@ -6,11 +6,14 @@ class AveragerQueueEmptyError(Exception):
 
 
 class AveragerQueue():
-    def __init__(s, size=0):
+    def __init__(s, size=0, queue=None):
         s.size = size
         s.lock = threading.Lock()
         s.clear()
         s._q = []
+        if queue:
+            s._q = queue
+
 
     def push(s, val):
         with s.lock:
