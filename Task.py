@@ -13,8 +13,6 @@ class TaskStopException(Exception):
 class Task():
     listTasks = []
     listTasksLock = threading.Lock()
-
-    log = Syslog("task")
     lastId = 0
 
     listAsyncFunctions = {}
@@ -34,20 +32,20 @@ class Task():
         s._tid = None
         s._removing = False
         s._msgQueue = []
+        s._msgQueueLock = threading.Lock()
 
         if Task.taskByName(name):
             raise TaskAlreadyExistException(s.log, "Task with name '%s' is existed" % name)
 
         s.log.mute('debug')
         s.log.debug("created")
-        s.msg_lock = threading.Lock()
         s._ev = threading.Event()
-        Task.lastId += 1
-        s._id = Task.lastId
         s._alive = False
 
         with Task.listTasksLock:
-            s.listTasks.append(s)
+            Task.lastId += 1
+            s._id = Task.lastId
+            Task.listTasks.append(s)
 
 
     def iAmAlive(s):
@@ -73,7 +71,7 @@ class Task():
 
     def message(s):
         s._ev.clear()
-        with s.msg_lock:
+        with s._msgQueueLock:
             if not len(s._msgQueue):
                 return None
 
@@ -83,7 +81,7 @@ class Task():
 
 
     def dropMessages(s):
-        with s.msg_lock:
+        with s._msgQueueLock:
             s._msgQueue = []
 
 
@@ -280,7 +278,7 @@ class Task():
 
     @staticmethod
     def sleep(interval = 0):
-        tid = threading.get_native_id()
+        tid = Task.currTid()
         task = Task.taskByTid(tid)
         if not task:
 #            print("sleep in not task %d" % interval)
