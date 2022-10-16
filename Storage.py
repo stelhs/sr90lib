@@ -8,7 +8,7 @@ class Storage():
     def __init__(s, fileName, storageDir):
         s.storageDirectory = storageDir
         s.log = Syslog('Storage_%s' % fileName)
-        s.fileName = "%s%s" % (s.storageDirectory, fileName)
+        s.fileName = "%s/%s" % (s.storageDirectory, fileName)
         s.data = {}
         s.keys = {}
         s._lock = threading.Lock()
