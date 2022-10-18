@@ -258,7 +258,7 @@ class Gpio():
     @classmethod
     def eventHandler(c):
         while (1):
-            Task.sleep()
+            Task.sleep(200)
             poll_list = c.poll.poll(100)
             if not len(poll_list):
                 continue
