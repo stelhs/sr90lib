@@ -135,13 +135,13 @@ class Task():
                 if Task.taskErrorCb:
                     Task.taskErrorCb(s, trace)
 
-        with s._apiLock:
-            if s.exitCb:
-                try:
-                    s.exitCb()
-                except TaskStopException:
-                    pass
+        if s.exitCb:
+            try:
+                s.exitCb()
+            except TaskStopException:
+                pass
 
+        with s._apiLock:
             s.setState("stopped")
             if s.isRemoving() or s.autoremove:
                 with Task.listTasksLock:
@@ -352,7 +352,7 @@ class Task():
 
     def __str__(s):
         str = "task %d:%s/%s:%s" % (s._id, s._name, s.state(), s.tid())
-        if s._removing:
+        if s.isRemoving():
             str += ":removing"
         return str
 
