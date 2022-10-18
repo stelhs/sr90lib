@@ -98,7 +98,7 @@ class HttpServer():
             return None
 
         parts = lines[0].split()
-        if len(parts) < 3:
+        if len(parts) != 3:
             return None
 
         method, url, version = parts
