@@ -15,9 +15,6 @@ class Task():
     listTasksLock = threading.Lock()
     lastId = 0
 
-    listAsyncFunctions = {}
-    listAsyncLock = threading.Lock()
-
     taskErrorCb = None
 
     def __init__(s, name, fn=None, exitCb=None, autoremove=False):
@@ -125,6 +122,7 @@ class Task():
                 s.fn(s.fnArgs)
             else:
                 s.fn()
+
         except TaskStopException:
             s.log.debug("stopped")
         except Exception as e:
@@ -314,24 +312,16 @@ class Task():
 
     @staticmethod
     def asyncRunSingle(name, fn, exitCb = None):
-        with Task.listAsyncLock:
-            list = Task.listAsyncFunctions
-
-        if name in list:
-            with Task.listAsyncLock:
-                task = Task.listAsyncFunctions[name]
-            task.stop()
+        tname = "Async_%s" % name
+        task = Task.taskByName(tname)
+        if task:
             task.remove()
-            with Task.listAsyncLock:
-                Task.listAsyncFunctions.pop(name)
 
         def do():
             fn()
             task.remove()
-        task = Task("Async_%s" % name, do, exitCb)
+        task = Task(tname, do, exitCb)
         task.start()
-        with Task.listAsyncLock:
-            Task.listAsyncFunctions[name] = task
         return task
 
 
