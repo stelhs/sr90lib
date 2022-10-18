@@ -20,6 +20,7 @@ class Gpio():
         s.eventCb = None
         s.prevVal = None
         s._of = None
+        s._mode = mode
 
         s._lock = threading.Lock()
         s._gpioLock = threading.Lock()
@@ -36,8 +37,6 @@ class Gpio():
         s._usedGpio.append(s)
         if os.path.exists('FAKE'):
             s._fake = True
-
-        s.setMode(mode)
 
 
     def setMode(s, mode):
