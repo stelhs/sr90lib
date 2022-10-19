@@ -20,7 +20,6 @@ class Gpio():
         s.eventCb = None
         s.prevVal = None
         s._of = None
-        s._mode = mode
 
         s._lock = threading.Lock()
         s._gpioLock = threading.Lock()
@@ -37,6 +36,10 @@ class Gpio():
         s._usedGpio.append(s)
         if os.path.exists('FAKE'):
             s._fake = True
+
+        s._mode = 'not_configured'
+        if mode != 'not_configured':
+            s.setMode(mode)
 
 
     def setMode(s, mode):
@@ -101,6 +104,8 @@ class Gpio():
 
     def setValueReal(s, val):
         with s._gpioLock:
+            if not s._of:
+                raise GpioNotConfiguredError(s.log, "GPIO %d: gpio file is not opened")
             s._of.seek(0)
             s._of.write("%d" % val)
             s._of.flush()
