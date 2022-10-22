@@ -73,6 +73,8 @@ class HttpServer():
 
             if not s._listenedSock:
                 return
+
+#            conn.settimeout(30)
             httpConn = HttpServer.Connection(s, conn, addr, s._wwwDir)
             with s._lock:
                 s._connections.append(httpConn)
@@ -354,7 +356,7 @@ class HttpServer():
                         args = {}
 
                     try:
-                        if s.header('Connection') == 'keep-alive':
+                        if s.header('Connection').lower() == 'keep-alive':
                             s._keep_alive = True
                     except HttpConnectionHeaderError:
                         pass
