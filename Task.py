@@ -348,10 +348,10 @@ class Task():
 
 
     @staticmethod
-    def setTimeout(name, interval, cb):
+    def setTimeout(name, intervalMs, cb):
         def timeout():
             nonlocal task
-            Task.sleep(interval)
+            Task.sleep(intervalMs)
             task.log.info("timeout expire")
             cb()
             task.remove()
@@ -362,11 +362,11 @@ class Task():
 
 
     @staticmethod
-    def setPeriodic(name, interval, cb):
+    def setPeriodic(name, intervalMs, cb):
         def do():
             nonlocal task
             while 1:
-                Task.sleep(interval)
+                Task.sleep(intervalMs)
                 cb(task)
 
         task = Task('periodic_task_%s' % name, do)
