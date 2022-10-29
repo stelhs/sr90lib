@@ -270,8 +270,8 @@ class HttpServer():
             return s._body
 
 
-        def setCookie(s, key, val, path='/'):
-            s.setHeader("Set-Cookie: %s=%s; path=%s" % (key, val, path))
+        def setCookie(s, key, val, path='/', max_age=94608000):
+            s.setHeader("Set-Cookie: %s=%s; path=%s; Max-Age=%s" % (key, val, path, max_age))
 
 
         def removeCookie(s, key):
