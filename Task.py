@@ -31,6 +31,7 @@ class Task():
         s._msgQueue = []
         s._msgQueueLock = threading.Lock()
         s._apiLock = threading.Lock()
+        s._inSleep = None
 
 
         if Task.taskByName(name):
@@ -124,7 +125,7 @@ class Task():
                 s.fn()
 
         except TaskStopException:
-            s.log.debug("stopped")
+            s.log.debug("caughted TaskStopException")
         except Exception as e:
             with s._apiLock:
                 trace = traceback.format_exc()
@@ -134,6 +135,7 @@ class Task():
                     Task.taskErrorCb(s, trace)
 
         if s.exitCb:
+            s.log.debug("call exitCb")
             try:
                 s.exitCb()
             except TaskStopException:
@@ -152,7 +154,7 @@ class Task():
         with s._apiLock:
             if s.state() != "running":
                 return
-            s.log.debug("stopping")
+            s.log.debug("set state stopping")
             s.setState("stopping")
 
 
@@ -285,7 +287,7 @@ class Task():
 
 
     @staticmethod
-    def sleep(interval = 0):
+    def sleep(interval = 0, name=""):
         tid = Task.currTid()
         task = Task.taskByTid(tid)
         if not task:
@@ -295,8 +297,11 @@ class Task():
 
         t = interval
         while (1):
+            task._inSleep = (name, t, interval)
             task.iAmAlive()
             if task.state() == "stopping":
+                task.log.debug("caught state stopping in sleep()")
+                task._inSleep = None
                 raise TaskStopException
 
             while(task.state() == "paused"):
@@ -308,6 +313,7 @@ class Task():
 
             if t <= 0:
                 break
+        task._inSleep = None
 
 
     @staticmethod
@@ -344,6 +350,8 @@ class Task():
         str = "task %d:%s/%s:%s" % (s._id, s._name, s.state(), s.tid())
         if s.isRemoving():
             str += ":removing"
+        if s._inSleep:
+            str += ":inSleep(%s%d/%d)" % s._inSleep
         return str
 
 
