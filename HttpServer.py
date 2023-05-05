@@ -169,6 +169,12 @@ class HttpServer():
         return args
 
 
+    def __repr__(s):
+        msg = "HttpServer: %s:%s\n" % (s._host, s._port)
+        for h in s._reqHandlers:
+            msg += "\t%s\n" % h.url
+        return msg
+
 
     def destroy(s):
         print("destroy HttpServer")
