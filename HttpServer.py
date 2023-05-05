@@ -14,12 +14,16 @@ class HttpHandlerError(Exception):
     def code(s):
         return s.errCode
 
-
-class HttpConnectionHeaderError(Exception): # Needed header is absent
+class HttpConnection(Exception):
     pass
 
+class HttpConnectionHeaderError(HttpConnection): # Needed header is absent
+    pass
 
-class HttpConnectionCookieError(Exception): # Needed cookie is absent
+class HttpConnectionCookieError(HttpConnection): # Needed cookie is absent
+    pass
+
+class HttpConnectionBodyError(HttpConnection): # Needed cookie is absent
     pass
 
 
@@ -276,6 +280,14 @@ class HttpServer():
             return s._body
 
 
+        def bodyJson(s):
+            try:
+                return json.loads(s._body)
+            except json.decoder.JSONDecodeError as e:
+                raise HttpConnectionBodyError("Can't parse body as JSON: %s. Body: %s" % (
+                                                e, s._body))
+
+
         def setCookie(s, key, val, path='/', max_age=94608000):
             s.setHeader("Set-Cookie: %s=%s; path=%s; Max-Age=%s" % (key, val, path, max_age))
 
@@ -369,7 +381,7 @@ class HttpServer():
 
                     try:
                         if s.header('Content-Type') == 'application/x-www-form-urlencoded':
-                            postArgs = HttpServer.parseParamsString(body)
+                            postArgs = HttpServer.parseParamsString(s._body)
                             args.update(postArgs)
                     except HttpConnectionHeaderError:
                         pass
