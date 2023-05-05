@@ -26,3 +26,6 @@ class Syslog():
     def mute(s, msgType):
         if not msgType in s._muted:
             s._muted.append(msgType)
+
+    def unmute(s, msgType):
+        s._muted.remove(msgType)

@@ -121,6 +121,12 @@ class TelegramClient:
         s.send(chatId, msg, replyToMessageId=0, disableNotification=False)
 
 
+    def sendToChatSync(s, chatName, msg, replyToMessageId=0,
+                       disableNotification=False):
+        chatId = s.chatIdByName(chatName)
+        s.telegram.send(chatId, msg, replyToMessageId, disableNotification)
+
+
     def chatIdByName(s, chatName):
         try:
             return s.conf['chats'][chatName]['chatId']
