@@ -29,3 +29,20 @@ class HttpClient():
         except KeyError as e:
             raise HttpClient.Error("Request '%s' to %s return incorrect json: %s" % (
                             op, s._name, r.content)) from e
+
+
+    def reqPost(s, op, data, args = {}):
+        url = "http://%s:%s/%s" % (s._host, s._port, op)
+        try:
+            r = requests.post(url=url, data=data, timeout=40, params = args,
+                              headers={'Content-Type': 'application/x-www-form-urlencoded'})
+            resp = r.json()
+            if resp['status'] != 'ok' and resp['reason']:
+                raise HttpClient.Error("Request '%s' to %s return response with error: %s" % (
+                                op, s._name, resp['reason']))
+            return resp
+        except requests.exceptions.RequestException as e:
+            raise HttpClient.Error('Request "%s" error: %s' % (op, e)) from e
+        except KeyError as e:
+            raise HttpClient.Error('Request "%s" error: Key %s is absent in responce' % (
+                                       op, e)) from e
