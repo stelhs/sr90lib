@@ -18,7 +18,7 @@ class ConfParser():
         stripped = ""
         lines = text.split("\n")
         for line in lines:
-            pos = line.find('//')
+            pos = line.find('#')
             if pos != -1:
                 line = line[:pos]
             stripped += "%s\n" % line

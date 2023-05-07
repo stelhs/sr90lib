@@ -3,6 +3,7 @@ import socket
 import select
 import json
 from Task import *
+from Syslog import *
 
 
 class HttpHandlerError(Exception):
@@ -41,8 +42,8 @@ class HttpServer():
         s._reqHandlers = []
 
 
-    def setReqHandler(s, method, url, cb, requiredFields=[], retJson=True):
-        reqHandler = HttpServer.ReqHandler(method, url, cb, requiredFields, retJson)
+    def setReqHandler(s, method, url, cb, requiredFields=[], retJson=True, errLog=False):
+        reqHandler = HttpServer.ReqHandler(method, url, cb, requiredFields, retJson, errLog)
         s._reqHandlers.append(reqHandler)
         return reqHandler
 
@@ -194,12 +195,15 @@ class HttpServer():
 
 
     class ReqHandler():
-        def __init__(s, method, url, handler, requiredFields, retJson):
+        def __init__(s, method, url, handler, requiredFields, retJson, errLog):
             s.method = method
             s.url = url
             s.handler = handler
             s.requiredFields = requiredFields
             s.retJson = retJson
+            s.errLog = errLog
+            if errLog:
+                s.log = Syslog("HttpServer.ReqHandler %s" % url)
 
 
         def match(s, method, url):
@@ -225,14 +229,19 @@ class HttpServer():
                     content = json.dumps(ret)
                 return content
             except HttpHandlerError as e:
+                if s.errLog:
+                    s.log.err("HttpHandlerError: %s" % e)
                 return json.dumps({'status': 'error',
                                    'reason': '%s' % e,
                                    'errCode': e.code()})
             except TypeError as e:
+                err = "Http subscriber %s return not seriable data.\n" \
+                      "Error: %s.\n" \
+                      "Data: %s" % (s.url, e, ret if ret else '')
+                if s.errLog:
+                    s.log.err(err)
                 return json.dumps({'status': 'error',
-                                   'reason': "Http subscriber %s return not seriable data.\n" \
-                                             "Error: %s.\n" \
-                                             "Data: %s" % (s.url, e, ret if ret else '')})
+                                   'reason': err})
 
 
         def __repr__(s):
