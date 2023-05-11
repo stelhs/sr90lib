@@ -6,15 +6,27 @@ from AveragerQueue import *
 
 
 class TermoSensorDs18b20():
-    def __init__(s, addr, observerCb = None):
+    class Error(Exception):
+        pass
+
+    class TemperatureError(Error):
+        pass
+
+    class NoDataError(Error):
+        pass
+
+    def __init__(s, addr, observerCb = None, minT = None, maxT = None):
         s._addr = addr
+        s._minT = float(minT)
+        s._maxT = float(maxT)
+        s.error = None
         s.observerCb = observerCb
         s.log = Syslog("termo_sensor_%s" % addr)
-        s.lock = threading.Lock()
         s._fake = None
         s._t = None
+        s._updatedTime = None
         s.prev_t = None
-        s.queue = AveragerQueue(5)
+        s.queue = AveragerQueue(10)
 
         s.task = Task("termo_sensor_%s" % addr, s.do)
         s.task.start()
@@ -36,42 +48,62 @@ class TermoSensorDs18b20():
     def t(s):
         if s._fake:
             return float(fileGetContent(s._fakeFileName))
-        with s.lock:
-            return s._t
+
+        if s.error:
+            raise TermoSensorDs18b20.TemperatureError(s.error)
+
+        if (not s._updatedTime) or (s.timeNow() - s._updatedTime > 5) or s._t == None:
+            raise TermoSensorDs18b20.NoDataError('%s: No temperature data' % s._addr)
+
+        return s._t
+
+
+    def timeNow(s):
+        return int(time.time())
 
 
     def do(s):
         while True:
             Task.sleep(1000)
             try:
-                of = open("/sys/bus/w1/devices/%s/w1_slave" % s._addr, "r")
-                for i in range(10):
-                    of.seek(0)
-                    c = of.read().strip()
-                    res = re.search("t=([\d-]+)", c)
-                    if not res:
-                        Task.sleep(100)
-                        continue
-                    t = float(res.groups()[0]) / 1000.0
-                    with s.lock:
-                        s.queue.push(t)
-                        s._t = s.queue.round()
+                with open("/sys/bus/w1/devices/%s/w1_slave" % s._addr, "r") as f:
+                    f.seek(0)
+                    content = f.read().strip()
+            except OSError as e:
+                s.error = 'Can`t read device file: %s' % e
+                Task.sleep(1000)
+                continue
 
-                        t = None
-                        if s.observerCb and s._t != s.prev_t:
-                            t = s._t
-                        s.prev_t = s._t
+            try:
+                t = float(re.findall("t=([\d-]+)", content)[0]) / 1000.0
+                s.error = ""
+            except IndexError:
+                s.error = "parse error: %s" % content
+                continue
+            except ValueError:
+                s.error = "parse float error: %s" % content
+                continue
 
-                    if s.observerCb and t != None:
-                        s.observerCb(s, t)
+            s.queue.push(t)
+            s._t = s.queue.round()
+            s._updatedTime = s.timeNow()
 
-                of.close()
-            except Exception as e:
-                err = "Can't read termosensor, reason: %s" % e
-                s.log.err(err)
-                with s.lock:
-                    s._t = None
-                Task.sleep(30000) # TODO
+            if s._maxT and t > s._maxT:
+                s.error = "sensor %s failure %.2f > %.2f" % (s._addr, t, s._maxT)
+            elif s._minT and t < s._minT:
+                s.error = "sensor %s failure %.2f < %.2f" % (s._addr, t, s._minT)
+            else:
+                s.error = None
+
+            t = None
+            if s.observerCb and s._t != s.prev_t:
+                t = s._t
+            s.prev_t = s._t
+
+            if s.observerCb and t != None:
+                s.observerCb(s, t, s.error)
+
+
 
 
     def destroy(s):
