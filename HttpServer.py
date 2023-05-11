@@ -221,19 +221,19 @@ class HttpServer():
                 ret = None
                 ret = s.handler(args, conn)
                 content = ret
-
-                if s.retJson:
-                    if not ret:
-                        ret = {}
-                    ret['status'] = 'ok'
-                    content = json.dumps(ret)
-                return content
             except HttpHandlerError as e:
                 if s.errLog:
                     s.log.err("HttpHandlerError: %s" % e)
                 return json.dumps({'status': 'error',
                                    'reason': '%s' % e,
                                    'errCode': e.code()})
+            try:
+                if s.retJson:
+                    if not ret:
+                        ret = {}
+                    ret['status'] = 'ok'
+                    content = json.dumps(ret)
+                return content
             except TypeError as e:
                 err = "Http subscriber %s return not seriable data.\n" \
                       "Error: %s.\n" \
