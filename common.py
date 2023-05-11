@@ -1,4 +1,4 @@
-import os, math, datetime
+import os, math, datetime, time
 
 
 class FileError(Exception):
@@ -42,13 +42,13 @@ def timeDurationStr(duration):
     mins = totalMins - totalHours * 60
     sec = duration - totalMins * 60
 
-    str = "%02d" % sec
+    str = "%02d сек." % sec
     if mins:
-        str = "%02d:%s" % (mins, str)
+        str = "%02d:%02d мин." % (mins, sec)
     if hours:
-        str = "%02d:%s" % (hours, str)
+        str = "%02d:%02d:%02d " % (hours, mins, sec)
     if days:
-        str = "%dd %s" % (days, str)
+        str = "%dдн. %s" % (days, str)
     return str
 
 
@@ -57,4 +57,8 @@ def timeDateToStr(timestamp):
         return None
     d = datetime.datetime.fromtimestamp(timestamp)
     return "%02d.%02d.%04d %02d:%02d:%02d" % (d.day, d.month, d.year, d.hour, d.minute, d.second)
+
+
+def now():
+    return int(time.time())
 
