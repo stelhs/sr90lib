@@ -6,14 +6,16 @@ import traceback
 from sr90Exceptions import *
 
 
-class TaskStopException(Exception):
-    pass
-
 
 class Task():
     listTasks = []
     listTasksLock = threading.Lock()
     lastId = 0
+    class StopException(Exception):
+        pass
+
+    class StopError(Exception):
+        pass
 
     taskErrorCb = None
 
@@ -124,8 +126,8 @@ class Task():
             else:
                 s.fn()
 
-        except TaskStopException:
-            s.log.debug("caughted TaskStopException")
+        except Task.StopException:
+            s.log.debug("caughted Task.StopException")
         except Exception as e:
             with s._apiLock:
                 trace = traceback.format_exc()
@@ -138,7 +140,7 @@ class Task():
             s.log.debug("call exitCb")
             try:
                 s.exitCb()
-            except TaskStopException:
+            except Task.StopException:
                 pass
 
         with s._apiLock:
@@ -192,13 +194,14 @@ class Task():
 
             s.log.debug("removing..")
             s.log.debug("stopping")
-            s.setState("stopping")
             s._removing = True
+            s.setState("stopping")
 
-        while 1:
+        for i in range(30):
             if s.state() == "removed":
                 return
             s.sleep(100)
+        raise Task.StopError('task %s: can`t removed' % s.name())
 
 
     def isRemoving(s):
@@ -302,7 +305,7 @@ class Task():
             if task.state() == "stopping":
                 task.log.debug("caught state stopping in sleep()")
                 task._inSleep = None
-                raise TaskStopException
+                raise Task.StopException
 
             while(task.state() == "paused"):
                 time.sleep(1/10)
