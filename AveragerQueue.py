@@ -32,3 +32,7 @@ class AveragerQueue():
     def clear(s):
         with s.lock:
             s._q = []
+
+
+    def __repr__(s):
+        return "AveragerQueue/len:%d" % len(s._q)
