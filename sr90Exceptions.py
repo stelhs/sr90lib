@@ -52,3 +52,20 @@ class SettingsError(AppError):
 class SettingsSaveError(SettingsError):
     pass
 
+
+# Subprocess Errors
+
+class SubProcessError(AppError):
+    pass
+
+class SubProcessRegisterError(SubProcessError):
+    pass
+
+class SubProcessNotStartedError(SubProcessError):
+    pass
+
+class SubProcessCantStopError(SubProcessError):
+    pass
+
+class SubProcessCantStartError(SubProcessError):
+    pass
