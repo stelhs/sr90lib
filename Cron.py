@@ -3,45 +3,59 @@ from Task import *
 
 
 class Cron():
+    class Err(Exception):
+        pass
+
     def __init__(s):
-        s.task = Task.setPeriodic('cron', 5000, s.do)
+        s.taskExec = Task('cronExec', s.execTask)
         s._workers = []
-        s.lastMinute = datetime.datetime.now().minute
+        s.lastStamp = now()
         s._disabled = False
         s.log = Syslog("Cron")
+        s.taskExec.start()
+        s.taskObserver = Task.setPeriodic('cronObserver', 300, s.timeObserver)
 
 
-    def do(s, task):
+    def timeObserver(s, task):
         if s._disabled:
             return
 
-        now = datetime.datetime.now()
-        if now.minute == s.lastMinute:
+        stamp = now()
+        if stamp == s.lastStamp:
             return
+        s.lastStamp = stamp
+        s.taskExec.sendMessage(stamp)
 
-        s.lastMinute = now.minute
-        for wrk in s._workers:
-            if wrk.math(now):
-                def cb():
-                    Task.sleep(random.randrange(1, 15) * 1000)
-                    wrk.cb()
-                try:
-                    Task.asyncRun('cron_worker_%s' % wrk.name(), cb)
-                except TaskAlreadyExistException:
-                    s.log.err('Can`t start worker "%s", ' \
-                              'previous execution is not finished' % wrk.name())
+
+    def execTask(s):
+        while 1:
+            stamp = s.taskExec.waitMessage()
+            now = datetime.datetime.fromtimestamp(stamp)
+            for wrk in s._workers:
+                if wrk.isDisabled():
+                    continue
+                if wrk.math(now):
+                    wrk.run()
 
 
     def workers(s):
         return s._workers
 
 
-    # rule like the crontab format: "* * * * *"
-    #                    "minute hour day month dayOfWeek"
-    # example: "*/5 14 * * *"
-    def register(s, name, rule, cb):
-        wrk = Cron.Worker(name, rule, cb)
+    def worker(s, name):
+        for w in s.workers():
+            if w.name() == name:
+                return w
+        raise Cron.Err('Worker "%s" is not registred' % name)
+
+
+    # rulesStr: list of rule like the crontab format: "* * * * * *"
+    #                                         "sec minute hour day month dayOfWeek(1-7)"
+    # example: "* */5 14 * * *"
+    def register(s, name, rulesStr, sync=False, precision=15):
+        wrk = Cron.Worker(name, rulesStr, sync, precision)
         s._workers.append(wrk)
+        return wrk
 
 
     def unregister(s, worker):
@@ -58,21 +72,23 @@ class Cron():
 
     def __repr__(s):
         return ("Cron %s:\n%s" % ('disabled' if s._disabled else 'enabled', \
-                                  ''.join(["\t%s\n" % str(w) for w in s.workers()])))
-
+                                  '\n'.join(["\t%s" % str(w) for w in s.workers()])))
 
 
 
     class Worker():
-        class Error(Exception):
-            pass
-
-        def __init__(s, name, rule, cb):
+        def __init__(s, name, rulesStr, sync, precision):
             s._name = name
-            s.cb = cb
-            s.parseRule(rule)
-            s.rule = rule
+            s.syncFlag = sync
+            s.precision = precision
+            s.cbList = []
+            s.rules = [Cron.Rule(ruleStr) for ruleStr in rulesStr]
             s._disabled = False
+            s.cntRun = 0
+
+
+        def name(s):
+            return s._name
 
 
         def enable(s):
@@ -83,25 +99,75 @@ class Cron():
             s._disabled = True
 
 
-        def name(s):
-            return "%s:%s" % (s._name, s.rule.replace(' ', '_'))
+        def isDisabled(s):
+            return s._disabled
 
 
-        def parseRule(s, rule):
-            limits = [{'type': 'minutes', 'min': 0, 'max': 59},
+        def addCb(s, cb):
+            s.cbList.append(cb)
+
+
+        def run(s):
+            s.cntRun += 1
+            if s.syncFlag:
+                for cb in s.cbList:
+                    cb(s)
+                return
+
+            def taskCb():
+                Task.sleep(random.randrange(0, s.precision + 1) * 1000)
+                for cb in s.cbList:
+                    cb(s)
+            try:
+                Task.asyncRun('cron_worker_%s' % s.name(), taskCb)
+            except TaskAlreadyExistException:
+                s.log.err('Can`t start worker "%s", ' \
+                          'previous execution is not finished' % s.name())
+
+
+        def math(s, datetime):
+            for r in s.rules:
+                if r.math(datetime):
+                    return True
+            return False
+
+
+        def __repr__(s):
+            return "Cron.%s:%s:%s" % (s.name(), ','.join([r.string() for r in s.rules]),
+                                      'disabled' if s._disabled else 'enabled')
+
+
+        def __str__(s):
+            return "Cron.%s:%s:%s" % (s.name(), ','.join([r.string() for r in s.rules]),
+                                      'disabled' if s._disabled else 'enabled')
+
+
+
+    class Rule():
+        def __init__(s, ruleStr):
+            s._ruleStr = ruleStr
+            try:
+                s.seconds, s.minutes, s.hours, s.days, \
+                           s.months, s.daysWeek = s.parse(ruleStr)
+            except ValueError as e:
+                raise Cron.Err('wrong amount of items: %s' % e)
+
+
+        def string(s):
+            return s._ruleStr.replace(' ', '_')
+
+
+        def parse(s, ruleStr):
+            limits = [{'type': 'seconds', 'min': 0, 'max': 59},
+                      {'type': 'minutes', 'min': 0, 'max': 59},
                       {'type': 'hour', 'min': 0, 'max': 23},
                       {'type': 'day', 'min': 1, 'max': 31},
                       {'type': 'month', 'min': 1, 'max': 12},
                       {'type': 'dayOfWeek', 'min': 1, 'max': 7}]
             li = iter(limits)
-            try:
-                s.minutes, s.hours, s.days, \
-                s.months, s.daysWeek = [s.parseItem(i.strip(), next(li))
-                                      for i in rule.split(' ')
-                                         if len(i.strip())]
-            except ValueError as e:
-                raise Cron.Worker.Error('wrong amount of items ' \
-                                        '"%s": %s' % (item, e))
+            return [s.parseItem(i.strip(), next(li))
+                                  for i in ruleStr.split(' ')
+                                     if len(i.strip())]
 
 
         def parseItem(s, item, limits):
@@ -110,15 +176,15 @@ class Cron():
                     try:
                         return [int(i) for i in item.split(',')]
                     except ValueError as e:
-                        raise Cron.Worker.Error('syntax error "%s": %s' % (item, e)) from e
+                        raise Cron.Err('syntax error "%s": %s' % (item, e)) from e
 
                 if item.find('-') > -1:
                     try:
                         start, end = [int(i) for i in item.split('-')]
                     except ValueError as e:
-                        raise Cron.Worker.Error('syntax error "%s": %s' % (item, e)) from e
+                        raise Cron.Err('syntax error "%s": %s' % (item, e)) from e
                     if start > end:
-                        raise Cron.Worker.Error('item interval error: %s' % item)
+                        raise Cron.Err('item interval error: %s' % item)
                     return [i for i in range(start, end + 1)]
 
                 if item == '*':
@@ -129,45 +195,47 @@ class Cron():
                     try:
                         return [i for i in range(limits['min'], limits['max'] + 1, int(m[0]))]
                     except ValueError as e:
-                        raise Cron.Worker.Error('syntax error "%s": %s' % (item, e)) from e
+                        raise Cron.Err('syntax error "%s": %s' % (item, e)) from e
 
                 try:
                     return [int(item)]
                 except ValueError as e:
-                    raise Cron.Worker.Error('syntax error "%s": %s' % (item, e)) from e
+                    raise Cron.Err('syntax error "%s": %s' % (item, e)) from e
 
             values = parse(item)
             if values != None:
                 for i in values:
                     if i < limits['min']:
-                        raise Cron.Worker.Error('incorect %s "%s" in list: %s' % (
+                        raise Cron.Err('incorect %s "%s" in list: %s' % (
                                                 limits['type'], i, values))
                     if i > limits['max']:
-                        raise Cron.Worker.Error('incorect %s "%s" in list: %s' % (
+                        raise Cron.Err('incorect %s "%s" in list: %s' % (
                                                 limits['type'], i, values))
             return values
 
 
-        def math(s, now):
-            if s._disabled:
+        def math(s, datetime):
+            if s.seconds and datetime.second not in s.seconds:
                 return False
-            if s.minutes and now.minute not in s.minutes:
+            if s.minutes and datetime.minute not in s.minutes:
                 return False
-            if s.hours and now.hour not in s.hours:
+            if s.hours and datetime.hour not in s.hours:
                 return False
-            if s.days and now.day not in s.days:
+            if s.days and datetime.day not in s.days:
                 return False
-            if s.months and now.month not in s.months:
+            if s.months and datetime.month not in s.months:
                 return False
-            if s.daysWeek and now.weekday() not in s.daysWeek:
+            if s.daysWeek and (datetime.weekday() + 1) not in s.daysWeek:
                 return False
             return True
 
 
         def __repr__(s):
-            return "Cron.%s:%s" % (s.name(), 'disabled' if s._disabled else 'enabled')
+            return "Cron.Rule:%s" % s.string()
 
 
         def __str__(s):
-            return "Cron.%s:%s" % (s.name(), 'disabled' if s._disabled else 'enabled')
+            return "Cron.Rule:%s" % s.string()
+
+
 
