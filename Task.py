@@ -14,7 +14,13 @@ class Task():
     class StopException(Exception):
         pass
 
-    class StopError(Exception):
+    class Err(Exception):
+        pass
+
+    class RemoveErr(Err):
+        pass
+
+    class WaitTimeout(Err):
         pass
 
     taskErrorCb = None
@@ -201,7 +207,7 @@ class Task():
             if s.state() == "removed":
                 return
             s.sleep(100)
-        raise Task.StopError('task %s: can`t removed' % s.name())
+        raise Task.RemoveErr('task %s: can`t removed' % s.name())
 
 
     def isRemoving(s):
@@ -320,6 +326,17 @@ class Task():
 
 
     @staticmethod
+    def wait(conditionFn, timeoutSec=0, pollInterval=100):
+        startTime = now()
+        while True:
+            if conditionFn():
+                return
+            if (now() - startTime) > timeoutSec:
+                raise Task.WaitTimeout('timeout exceded')
+            Task.sleep(pollInterval)
+
+
+    @staticmethod
     def asyncRunSingle(name, fn, exitCb = None):
         tname = "Async_%s" % name
         task = Task.taskByName(tname)
@@ -356,6 +373,10 @@ class Task():
         if s._inSleep:
             str += ":inSleep(%s%d/%d)" % s._inSleep
         return str
+
+
+    def __repr__(s):
+        return str(s)
 
 
     @staticmethod
