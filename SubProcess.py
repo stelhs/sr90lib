@@ -156,12 +156,16 @@ class SubProcess():
         def observerDo(s):
             out = s._proc.stdout
             while 1:
-                t = out.readline()
-                if len(t) == 0:
-                    break
-                s._stdout += t
-                if len(s._stdout) > 1024 * 100:
-                    s._stdout = s._stdout[-1024 * 100:]
+                try:
+                    t = out.readline()
+                    if len(t) == 0:
+                        break
+                    s._stdout += t
+                    if len(s._stdout) > 1024 * 100:
+                        s._stdout = s._stdout[-1024 * 100:]
+                except UnicodeDecodeError:
+                    pass
+
 
             cnt = 0
             while s._proc.poll() == None:

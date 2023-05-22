@@ -33,8 +33,8 @@ class Storage():
 
     def save(s):
         try:
-            c = s.jsonData()
             with s._lock:
+                c = s.jsonData()
                 filePutContent(s.fileName, c)
         except FileError as e:
             raise StorageSaveError(s.log,
