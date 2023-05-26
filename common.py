@@ -1,4 +1,4 @@
-import os, math, datetime, time
+import os, math, datetime, time, fnmatch
 
 
 class FileError(Exception):
@@ -29,6 +29,10 @@ def fileGetBinary(filename):
             return data
     except Exception as e:
         raise FileError("fileGetBinary(%s) error: %s" % (filename, e)) from e
+
+
+def wildcardMatch(pattern, string):
+    return bool(fnmatch.filter([string], pattern))
 
 
 def timeDurationStr(duration):

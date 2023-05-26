@@ -1,6 +1,8 @@
 import os, subprocess, signal, threading
+from common import *
 from Syslog import *
 from Task import *
+from Counters import *
 
 
 class SubProcess():
@@ -22,12 +24,12 @@ class SubProcess():
         raise SubProcessRegisterError(s.log, "process %s is not registred" % name)
 
 
-    def register(s, name, cmd, autoRestart=False, onStoppedCb=None):
+    def register(s, name, cmd, autoRestart=False, onStoppedCb=None, nice=0):
         for proc in s.processes():
             if proc.name() == name:
                 raise SubProcessRegisterError(s.log,
                         "process with name '%s' already registred" % name)
-        proc = SubProcess.Proc(s, name, cmd, autoRestart, onStoppedCb)
+        proc = SubProcess.Proc(s, name, cmd, autoRestart, onStoppedCb, nice)
         s._procList.append(proc)
         return proc
 
@@ -42,6 +44,16 @@ class SubProcess():
     def checkForRestart(s, t):
         for proc in s.processes():
             proc.checkForRestart()
+
+
+    def printList(s, wildcard='*'):
+        text = "SubProceses:\n"
+        for proc in s._procList:
+            if wildcardMatch(wildcard, proc.name()):
+                text += "\t%s:%s%s\n" % (proc.name(),
+                                        'started' if proc.isStarted() else 'stopped',
+                                        (":%d" % proc.pid() if proc.pid() else ""))
+        print(text)
 
 
     def __repr__(s):
@@ -61,7 +73,7 @@ class SubProcess():
 
 
     class Proc():
-        def __init__(s, sp, name, cmdFn, autoRestart=False, onStoppedCb=None):
+        def __init__(s, sp, name, cmdFn, autoRestart=False, onStoppedCb=None, nice=0):
             s.sp = sp
             s._name = name
             s._cmdFn = cmdFn
@@ -70,7 +82,14 @@ class SubProcess():
             s._proc = None
             s._startStopLock = threading.Lock()
             s._onStoppedCb = onStoppedCb
+            s._nice = nice
             s.log = Syslog('SubProcess:%s' % s.name())
+
+            s.counters = Counters({'start': 0,
+                                   'stop': 0,
+                                   'restart': 0,
+                                   'finished': 0})
+
             s.observerTask = Task('subprocess_%s' % s.name(), s.observerDo)
             s._autoRestartFlag = autoRestart
             s._stdout = ""
@@ -81,6 +100,7 @@ class SubProcess():
 
 
         def start(s):
+            s.counters.inc('start')
             with s._startStopLock:
                 if s.isStarted():
                     raise SubProcessCantStartError(s.log, "process %s already started %s" % (
@@ -90,6 +110,7 @@ class SubProcess():
 
 
         def stop(s):
+            s.counters.inc('stop')
             with s._startStopLock:
                 if not s.isStarted():
                     raise SubProcessNotStartedError(s.log, 'process %s already stopped' % (
@@ -99,6 +120,7 @@ class SubProcess():
 
 
         def restart(s):
+            s.counters.inc('restart')
             with s._startStopLock:
                 if not s.isStarted():
                     raise SubProcessCantStartError(s.log, "process %s not started" % (
@@ -112,11 +134,14 @@ class SubProcess():
             if s.isRun():
                 return
             try:
+                def preexec():
+                    os.setsid()
+                    os.nice(s._nice)
                 s._proc = subprocess.Popen(s._cmdFn(), shell=False,
                                            stdout=subprocess.PIPE,
                                            stderr=subprocess.STDOUT,
                                            text=True,
-                                           preexec_fn=os.setsid)
+                                           preexec_fn=preexec)
                 s._pid = s._proc.pid
                 s.observerTask.start()
             except IOError as e:
@@ -175,6 +200,7 @@ class SubProcess():
                     print("gavno")
                     break
 
+            s.counters.inc('finished')
             if s._onStoppedCb:
                 def fin():
                     s._started = False

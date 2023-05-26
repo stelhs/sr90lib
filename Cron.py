@@ -1,4 +1,5 @@
 import re, datetime, random
+from common import *
 from Task import *
 
 
@@ -70,6 +71,11 @@ class Cron():
         s._disabled = True
 
 
+    def printList(s, wildcard='*'):
+        print("Cron %s:\n%s" % ('disabled' if s._disabled else 'enabled', \
+                                  '\n'.join(["\t%s" % str(w) for w in s.workers()
+                                              if wildcardMatch(wildcard, w.name())])))
+
     def __repr__(s):
         return ("Cron %s:\n%s" % ('disabled' if s._disabled else 'enabled', \
                                   '\n'.join(["\t%s" % str(w) for w in s.workers()])))
@@ -85,6 +91,7 @@ class Cron():
             s.rules = [Cron.Rule(ruleStr) for ruleStr in rulesStr]
             s._disabled = False
             s.cntRun = 0
+            s._historyCall = []
 
 
         def name(s):
@@ -109,6 +116,10 @@ class Cron():
 
         def run(s):
             s.cntRun += 1
+            s._historyCall.append(now())
+            if len(s._historyCall) > 100:
+                s._historyCall = s._historyCall[-100:]
+
             if s.syncFlag:
                 for cb in s.cbList:
                     cb(s)
@@ -119,7 +130,7 @@ class Cron():
                 for cb in s.cbList:
                     cb(s)
             try:
-                Task.asyncRun('cron_worker_%s' % s.name(), taskCb)
+                s._task = Task.asyncRun('cron_worker_%s' % s.name(), taskCb)
             except TaskAlreadyExistException:
                 s.log.err('Can`t start worker "%s", ' \
                           'previous execution is not finished' % s.name())
@@ -132,14 +143,21 @@ class Cron():
             return False
 
 
+        def printHistoryCall(s):
+            times = [datetime.datetime.fromtimestamp(t).strftime('%Y-%m-%d %H:%M:%S')
+                     for t in s._historyCall]
+            print("\n".join(times))
+
+
+
         def __repr__(s):
-            return "Cron.%s:%s:%s" % (s.name(), ','.join([r.string() for r in s.rules]),
-                                      'disabled' if s._disabled else 'enabled')
+            return "Cron.%s:%s:%s:%d" % (s.name(), ','.join([r.string() for r in s.rules]),
+                                      'disabled' if s._disabled else 'enabled', s.cntRun)
 
 
         def __str__(s):
-            return "Cron.%s:%s:%s" % (s.name(), ','.join([r.string() for r in s.rules]),
-                                      'disabled' if s._disabled else 'enabled')
+            return "Cron.%s:%s:%s:%d" % (s.name(), ','.join([r.string() for r in s.rules]),
+                                      'disabled' if s._disabled else 'enabled', s.cntRun)
 
 
 

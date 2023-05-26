@@ -412,10 +412,11 @@ class Task():
 
 
     @staticmethod
-    def printList():
+    def printList(wildcard='*'):
         with Task.listTasksLock:
             for tsk in Task.listTasks:
-                print("%s" % tsk)
+                if wildcardMatch(wildcard, tsk.name()):
+                    print("%s" % tsk)
 
 
 
