@@ -24,6 +24,13 @@ class SubProcess():
         raise SubProcessRegisterError(s.log, "process %s is not registred" % name)
 
 
+    def processByPid(s, pid):
+        for proc in s._procList:
+            if proc.pid() == pid:
+                return proc
+        raise SubProcessRegisterError(s.log, "process with PID %d is not registred" % pid)
+
+
     def register(s, name, cmd, autoRestart=False, onStoppedCb=None, nice=0):
         for proc in s.processes():
             if proc.name() == name:
@@ -196,7 +203,7 @@ class SubProcess():
             while s._proc.poll() == None:
                 Task.sleep(100)
                 cnt += 1
-                if cnt > 10:
+                if cnt > 100:
                     print("gavno")
                     break
 
