@@ -331,7 +331,7 @@ class Task():
         while True:
             if conditionFn():
                 return
-            if (now() - startTime) > timeoutSec:
+            if timeoutSec and (now() - startTime) > timeoutSec:
                 raise Task.WaitTimeout('timeout exceded')
             Task.sleep(pollInterval)
 
@@ -399,7 +399,7 @@ class Task():
             nonlocal task
             while 1:
                 Task.sleep(intervalMs)
-                cb(task)
+                cb()
 
         task = Task('periodic_task_%s' % name, do)
         task.start()
