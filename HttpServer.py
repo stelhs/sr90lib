@@ -24,7 +24,7 @@ class HttpConnectionHeaderError(HttpConnection): # Needed header is absent
 class HttpConnectionCookieError(HttpConnection): # Needed cookie is absent
     pass
 
-class HttpConnectionBodyError(HttpConnection): # Needed cookie is absent
+class HttpConnectionBodyError(HttpConnection): # Needed body is absent
     pass
 
 
@@ -279,8 +279,9 @@ class HttpServer():
 
 
         def header(s, name):
+            name = name.lower()
             for key, val in s._headers:
-                if key == name:
+                if key.lower() == name:
                     return val
             raise HttpConnectionHeaderError('header %s has absent in request' % name)
 
@@ -348,20 +349,11 @@ class HttpServer():
                     if not len(poll_list):
                         continue
 
-                    data = None;
-                    try:
-                        data = s._conn.recv(65535)
-                    except:
-                        pass
-
                     if not s._conn:
                         return
 
-                    if (not data) or (not len(data)):
-                        s.close()
-                        return
-
                     try:
+                        data = s._conn.recv(65535)
                         req = data.decode()
                     except:
                         s.close()
@@ -369,14 +361,25 @@ class HttpServer():
 
                     try:
                         parts = HttpServer.parseHttpRequest(req)
-                    except IndexError:
-                        parts = None
-
-                    if not parts:
+                        method, url, version, s._headers, s._body = parts
+                    except (IndexError, TypeError):
                         s.close()
                         return
 
-                    method, url, version, s._headers, s._body = parts
+                    contentLen = 0
+                    try:
+                        contentLen = int(s.header('Content-Length'))
+                    except HttpConnectionHeaderError:
+                        pass
+
+                    if not s._body and contentLen:
+                        try:
+                            body = s._conn.recv(contentLen)
+                            s._body = body.decode()
+                        except:
+                            s.close()
+                            return
+
                     s.log.debug("%s %s" % (method, url))
                     page, args = s.parseUrl(url)
                     if not args:
@@ -394,7 +397,6 @@ class HttpServer():
                             args.update(postArgs)
                     except HttpConnectionHeaderError:
                         pass
-
 
                     requestProcessed = False
                     for reqHandler in s._server.reqHandlers():
